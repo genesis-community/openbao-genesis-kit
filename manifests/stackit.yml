@@ -1,0 +1,7 @@
+---
+# STACKIT-specific configurations for OpenBAO
+
+# Add VM extensions for STACKIT if needed
+instance_groups:
+- name: openbao
+  vm_extensions: []

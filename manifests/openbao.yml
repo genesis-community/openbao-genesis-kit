@@ -1,0 +1,55 @@
+meta:
+  default:
+    azs: [z1, z2, z3]
+  domain: (( grab params.openbao_domain || "openbao.bosh" ))
+
+exodus:
+  ips: (( grab instance_groups.openbao.networks[0].static_ips ))
+  domain: (( grab meta.domain ))
+  url: (( concat "https://" instance_groups.openbao.networks[0].static_ips[0] ))
+  ca: (( vault meta.vault "/certs/ca:certificate" ))
+
+instance_groups:
+- name: openbao
+  jobs:
+  - name: openbao
+    release: openbao
+    properties:
+      openbao:
+        ui: (( grab params.ui || true ))
+        log_level: (( grab params.log_level || "info" ))
+        default_lease_ttl: (( grab params.default_lease_ttl || "768h" ))
+        max_lease_ttl: (( grab params.max_lease_ttl || "768h" ))
+        peer:
+          tls:
+            ca:          (( vault meta.vault "/certs/ca:certificate" ))
+            certificate: (( vault meta.vault "/certs/peer:certificate" ))
+            key:         (( vault meta.vault "/certs/peer:key" ))
+        tls:
+          certificate: (( vault meta.vault "/certs/vault:certificate" ))
+          key:         (( vault meta.vault "/certs/vault:key" ))
+  - name: bpm
+    release: bpm
+
+  instances: 3
+  azs:       (( grab params.availability_zones || meta.default.azs ))
+
+  persistent_disk_type: (( grab params.openbao_disk_type || "default" ))
+  vm_type:              (( grab params.openbao_vm_type   || "default" ))
+
+  stemcell: default
+  networks:
+  - name:       (( grab params.openbao_network || "openbao" ))
+    static_ips: (( static_ips 0 1 2 ))
+
+update:
+  serial: true
+  canaries: 1
+  canary_watch_time: 30000-120000
+  max_in_flight: 1
+  update_watch_time: 30000-120000
+
+stemcells:
+  - alias:   default
+    os:      (( grab params.stemcell_os      || "ubuntu-jammy" ))
+    version: (( grab params.stemcell_version || "latest"        ))

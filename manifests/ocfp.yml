@@ -1,0 +1,10 @@
+---
+meta:
+  ocfp:
+    env:
+      cloud: (( concat genesis.env "." genesis.type "." ))
+
+params:
+  openbao_network:       (( concat meta.ocfp.env.cloud "net-openbao" ))
+  openbao_vm_type:       (( concat meta.ocfp.env.cloud "vm-openbao" ))
+  openbao_disk_type:     (( concat meta.ocfp.env.cloud "disk-openbao" ))

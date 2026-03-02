@@ -1,0 +1,37 @@
+---
+name:   openbao
+version: 1.0.0
+
+author:
+  - Dennis Bell  <dbell@fivetwenty.io>
+  - Wayne Seguin <weseguin@fivetwenty.io>
+code:   https://github.com/genesis-community/openbao-genesis-kit
+docs:   https://genesisproject.io/docs/
+
+genesis_version_min: 3.1.0
+
+supports:
+- aws
+- azure
+- gcp
+- openstack
+- vsphere
+- stackit
+
+required_configs:
+  blueprint: []
+
+certificates:
+  base:
+    certs:
+      ca: { valid_for: 10y }
+      peer:
+        valid_for: 10y
+        names:
+          - openbao_raft_peer
+          - 127.0.0.1
+      vault:
+        valid_for: 2y
+        names:
+          - "${meta.domain}"
+          - 127.0.0.1

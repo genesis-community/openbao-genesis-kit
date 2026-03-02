@@ -1,0 +1,14 @@
+secret/azure/openbao/certs/ca:
+  certificate: <!{meta.vault}/certs/ca:certificate!>
+  combined: <!{meta.vault}/certs/ca:combined!>
+  crl: <!{meta.vault}/certs/ca:crl!>
+  key: <!{meta.vault}/certs/ca:key!>
+  serial: <!{meta.vault}/certs/ca:serial!>
+secret/azure/openbao/certs/peer:
+  certificate: <!{meta.vault}/certs/peer:certificate!>
+  combined: <!{meta.vault}/certs/peer:combined!>
+  key: <!{meta.vault}/certs/peer:key!>
+secret/azure/openbao/certs/vault:
+  certificate: <!{meta.vault}/certs/vault:certificate!>
+  combined: <!{meta.vault}/certs/vault:combined!>
+  key: <!{meta.vault}/certs/vault:key!>
