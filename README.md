@@ -67,31 +67,49 @@ genesis do my-env -- target
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────┐
-│              BOSH Deployment                │
-│                                             │
-│  ┌───────────┐ ┌───────────┐ ┌───────────┐ │
-│  │ openbao/0 │ │ openbao/1 │ │ openbao/2 │ │
-│  │           │ │           │ │           │ │
-│  │  OpenBAO  │ │  OpenBAO  │ │  OpenBAO  │ │
-│  │  (BPM)    │ │  (BPM)    │ │  (BPM)    │ │
-│  │           │ │           │ │           │ │
-│  │ Raft peer◄├─┼──►Raft ◄──┼─┤►Raft peer │ │
-│  │  (mTLS)   │ │  leader   │ │  (mTLS)   │ │
-│  └───────────┘ └───────────┘ └───────────┘ │
-│       ▲              ▲             ▲        │
-└───────┼──────────────┼─────────────┼────────┘
-        │         TLS (HTTPS)        │
-        └──────────────┼─────────────┘
-                       │
-                   safe CLI
+```mermaid
+graph TB
+    subgraph bosh["BOSH Deployment"]
+        direction LR
+
+        subgraph node0["openbao/0"]
+            bao0["OpenBAO<br/><i>BPM managed</i>"]
+        end
+
+        subgraph node1["openbao/1"]
+            bao1["OpenBAO<br/><i>BPM managed</i>"]
+        end
+
+        subgraph node2["openbao/2"]
+            bao2["OpenBAO<br/><i>BPM managed</i>"]
+        end
+
+        bao0 <--->|"Raft mTLS<br/>(peer cert)"| bao1
+        bao1 <--->|"Raft mTLS<br/>(peer cert)"| bao2
+        bao0 <--->|"Raft mTLS<br/>(peer cert)"| bao2
+    end
+
+    cli["safe CLI"] -->|"HTTPS<br/>(vault cert)"| bao0
+    cli -->|"HTTPS<br/>(vault cert)"| bao1
+    cli -->|"HTTPS<br/>(vault cert)"| bao2
+
+    style bosh fill:#1a1a2e,stroke:#16213e,color:#e0e0e0
+    style node0 fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style node1 fill:#0f3460,stroke:#e94560,color:#e0e0e0
+    style node2 fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style bao0 fill:#533483,stroke:#e94560,color:#ffffff
+    style bao1 fill:#e94560,stroke:#533483,color:#ffffff
+    style bao2 fill:#533483,stroke:#e94560,color:#ffffff
+    style cli fill:#16213e,stroke:#0f3460,color:#e0e0e0
 ```
 
-Each node runs a single OpenBAO process under BPM. Nodes form a Raft cluster
-with one elected leader handling writes and followers replicating state. A
-quorum of 2-of-3 nodes is required for availability. All peer traffic is
-encrypted with mTLS using a dedicated peer certificate.
+The leader node (highlighted) handles all writes. Followers replicate via Raft
+consensus over mTLS using the dedicated peer certificate. Client access from
+the `safe` CLI uses HTTPS with the vault certificate. A quorum of 2-of-3 nodes
+is required for availability.
+
+Each node runs a single OpenBAO process under BPM. Peer discovery is automatic
+via BOSH links, and the leader is elected through Raft consensus.
 
 ## Operator Addons
 
