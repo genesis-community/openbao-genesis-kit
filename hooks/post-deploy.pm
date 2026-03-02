@@ -9,6 +9,8 @@ BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/
 use parent qw(Genesis::Hook::PostDeploy);
 
 use Genesis qw/info run slurp lines/;
+# Note: Service::Vault is a Genesis framework module for safe CLI interactions.
+# It works with OpenBAO unchanged since the APIs are compatible.
 use Service::Vault;
 use JSON::PP;
 
@@ -103,7 +105,7 @@ sub _setup_doomsday_approle {
 	);
 
 	unless ($auth_rc == 0) {
-		info("Skipping doomsday approle setup - not authenticated with vault");
+		info("Skipping doomsday approle setup - not authenticated with OpenBAO");
 		return;
 	}
 

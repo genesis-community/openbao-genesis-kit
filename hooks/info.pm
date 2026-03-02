@@ -30,7 +30,6 @@ sub perform {
   bail("Failed to get VMs: $stderr") if $rc;
 
   info("OpenBAO Nodes:");
-  my @ips;
 	for my $row ($data->{Tables}[0]{Rows}->@*) {
 		next unless $row->{ips};
 		info("  https://%s", split(/,/, $row->{ips}) );

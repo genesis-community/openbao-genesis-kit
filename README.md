@@ -181,7 +181,7 @@ kit:
 - **azure** — Restricts to a single AZ and configures an Azure availability
   set for the cluster nodes.
 
-- **stackit** — Applies STACKIT-specific VM extension defaults.
+- **stackit** — Applies STACKIT platform compatibility settings.
 
 ## Certificate Lifecycle
 

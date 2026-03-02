@@ -200,12 +200,11 @@ To deploy using OCFP configurations:
 kit:
   name: openbao
   version: 1.0.0
+  features:
+    - ocfp
 
 genesis:
   env: ocfp-us-prod
-
-features:
-  - ocfp
 
 params:
   ocfp-instances: 3

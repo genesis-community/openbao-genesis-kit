@@ -30,6 +30,8 @@ certificates:
         names:
           - openbao_raft_peer
           - 127.0.0.1
+      # Client-facing API TLS certificate. Named "vault" for safe CLI
+      # compatibility — refers to the API protocol, not the product.
       vault:
         valid_for: 2y
         names:

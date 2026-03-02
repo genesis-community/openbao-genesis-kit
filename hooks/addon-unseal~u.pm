@@ -17,7 +17,7 @@ sub init {
 sub cmd_details {
 	return
 	"Unseal the OpenBAO cluster, making it available for use.\n".
-	"If seal keys are stored in the vault, they will be used automatically.\n".
+	"If seal keys are stored in OpenBAO, they will be used automatically.\n".
 	"Otherwise, you will need to provide the unseal keys when prompted.\n";
 }
 

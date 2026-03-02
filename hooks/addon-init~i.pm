@@ -81,7 +81,7 @@ sub perform {
 					# Parse and store seal keys
 					if ( $self->_store_seal_keys( $init_out, $env->name ) ) {
 						info("#G{OpenBAO initialized successfully!}");
-						info("Seal keys have been stored in the vault for automatic unsealing.");
+						info("Seal keys have been stored in OpenBAO for automatic unsealing.");
 					}
 					else {
 						info("#Y{WARNING:} OpenBAO initialized but seal keys could not be stored.");
@@ -232,6 +232,8 @@ sub _store_seal_keys {
 	my $stored_count = 0;
 	my @failed_keys;
 
+	# Path "secret/vault/seal/keys" is a safe CLI convention for seal key storage.
+	# Do not rename — safe automatic unseal depends on this path.
 	for ( my $i = 0 ; $i < @seal_keys ; $i++ ) {
 		my $key_num  = $i + 1;
 		my $key_path = "secret/vault/seal/keys:key$key_num";

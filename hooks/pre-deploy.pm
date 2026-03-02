@@ -9,6 +9,8 @@ BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/
 use parent qw(Genesis::Hook);
 
 use Genesis qw/info run mkfile_or_fail/;
+# Note: Service::Vault is a Genesis framework module for safe CLI interactions.
+# It works with OpenBAO unchanged since the APIs are compatible.
 use Service::Vault;
 
 # init - Initialize the hook {{{
@@ -28,11 +30,11 @@ sub perform {
 	my @matching_vaults = Service::Vault->find_by_target($self->env->name);
 	return $self->done() unless @matching_vaults;
 	my $vault = $matching_vaults[0];
-	$self->env->notify(" #iu{pre-deploy}: Retrieving vault unseal keys for post-deploy unsealing");
+	$self->env->notify(" #iu{pre-deploy}: Retrieving unseal keys for post-deploy unsealing");
 	my $vault_seal_path = (grep {$_ =~ m{/vault/seal/keys$}} $vault->paths())[0];
 	if (!$vault_seal_path) {
 		info(
-			'[[  - #Yr{#@{!} warning} >>Vault seal keys path not found - '.
+			'[[  - #Yr{#@{!} warning} >>Seal keys path not found - '.
 			'automatic unseal will not be available'
 		);
 		return $self->done(1);
@@ -41,7 +43,7 @@ sub perform {
 	my $keys = [values %{$vault->get($vault_seal_path)}];
 	if (!@$keys) {
 		info(
-			'[[  - #Yr{#@{!} warning} >>no vault unseal keys found at '.
+			'[[  - #Yr{#@{!} warning} >>no unseal keys found at '.
 			'[#C{%s}:key[1-N]] - '.
 			'automatic unseal will not be available',
 			$vault_seal_path
@@ -50,7 +52,7 @@ sub perform {
 	}
 
 	info(
-		'[[  - >>found %d vault unseal keys at '.
+		'[[  - >>found %d unseal keys at '.
 		'[#C{%s}:key[1-N]] - '.
 		'automatic unseal will be available after deployment',
 		scalar(@$keys), $vault_seal_path
