@@ -104,7 +104,8 @@ EOF
     $self->add_files($statics_file);
   }
 
-  $self->add_files('manifests/azure.yml') if ($self->iaas eq 'azure');
+  $self->add_files('manifests/azure.yml')  if ($self->iaas eq 'azure');
+  $self->add_files('manifests/stackit.yml') if ($self->iaas eq 'stackit');
 
   my @invalid = ();
   for my $feature ($self->features) {
