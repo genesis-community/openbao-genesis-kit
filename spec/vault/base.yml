@@ -1,3 +1,10 @@
+secret/exodus/base/bosh:
+  url: https://10.0.0.1:25555
+  admin_username: admin
+  admin_password: admin
+  ca_cert: mock-ca-cert
+  kit_name: bosh
+  iaas: aws
 secret/base/openbao/certs/ca:
   certificate: <!{meta.vault}/certs/ca:certificate!>
   combined: <!{meta.vault}/certs/ca:combined!>

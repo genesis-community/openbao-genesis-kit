@@ -4,6 +4,7 @@ kit:
 
 genesis:
   env:   azure
+  entomb: false
 
 params:
   auxiliary_vault: true

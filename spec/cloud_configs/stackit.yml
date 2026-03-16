@@ -40,6 +40,8 @@ networks:
     gateway: 10.0.1.1
     azs: [z1, z2, z3]
     dns: [8.8.8.8, 8.8.4.4]
+    reserved: [ 10.0.1.1 - 10.0.1.15 ]
+    static: [ 10.0.1.16 - 10.0.1.30 ]
     cloud_properties:
       net_id: openbao-net-id
 

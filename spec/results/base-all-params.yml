@@ -1,14 +1,13 @@
 exodus:
   bosh: some-other-env
+  ca: <!{meta.vault}/certs/ca:certificate!>
   domain: test.domain.com
   features: ""
-  ips:
-  - 10.1.1.0
-  - 10.1.1.1
-  - 10.1.1.2
-  - 10.1.1.3
-  - 10.1.1.4
+  iaas: aws
+  ips: 10.1.1.0,10.1.1.1,10.1.1.2,10.1.1.3,10.1.1.4
   is_director: false
+  scale: null
+  url: https://10.1.1.0
   use_create_env: false
 instance_groups:
 - azs:
@@ -47,12 +46,14 @@ instance_groups:
   vm_type: test-vm-type
 name: base-all-params-openbao
 releases:
-- name: bpm
-  version: latest
 - name: openbao
   sha1: sha256:0b0e09d3bced7f38e20a4904bc9e14462cda04d8169055486d232d00d27dcc04
   url: https://github.com/cloudfoundry-community/openbao-boshrelease/releases/download/v0.1.0/openbao-release-v0.1.0.tgz
   version: 0.1.0
+- name: bpm
+  sha1: sha256:51f2eab4b59939db733beb8f7905e461a732cc29d85e54f151f576cd5bf0c414
+  url: https://bosh.io/d/github.com/cloudfoundry/bpm-release?v=1.4.22
+  version: 1.4.22
 stemcells:
 - alias: default
   os: test-stemcell

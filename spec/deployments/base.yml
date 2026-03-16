@@ -4,6 +4,8 @@ kit:
 
 genesis:
   env:   base
+  entomb: false
+  
 
 params:
   auxiliary_vault: true
