@@ -8,7 +8,7 @@ BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/
 
 use parent qw(Genesis::Hook);
 
-use Genesis qw/bail/;
+use Genesis qw/bail run/;
 use Genesis::UI qw/prompt_for_boolean/;
 
 # init - Initialize the hook {{{
@@ -35,7 +35,15 @@ sub perform {
   $file_content .= "  name:    $ENV{GENESIS_KIT_NAME}\n";
   $file_content .= "  version: $ENV{GENESIS_KIT_VERSION}\n";
   $file_content .= "\n";
-  $file_content .= $self->env->genesis_config_block;
+  # Generate and add the genesis_config_block
+  my ($out, $rc) = run(
+    'cd "$1"; source .helper; genesis_config_block',
+    $self->kit->path
+  );
+  bail("Failed to generate genesis_config_block") if $rc;
+  $file_content .= $out;
+  $file_content .= "\n" unless $out =~ /\n$/;
+
 
   # Add auxiliary_vault param if not a genesis vault
   if (!$genesis_vault) {
@@ -46,7 +54,10 @@ sub perform {
   }
 
   # Write the environment file
-  $self->env->write_manifest($file_content);
+  my $env_file = "$ENV{GENESIS_ROOT}/$ENV{GENESIS_ENVIRONMENT}.yml";
+  open my $fh, ">", $env_file or bail("Cannot open $env_file for writing: $!");
+  print $fh $file_content;
+  close $fh;
 
   return $self->done();
 }
