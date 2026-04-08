@@ -8,7 +8,7 @@ BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/
 
 use parent qw(Genesis::Hook::PostDeploy);
 
-use Genesis qw/info run slurp lines/;
+use Genesis qw/info run/;
 # Note: Service::Vault is a Genesis framework module for safe CLI interactions.
 # It works with OpenBAO unchanged since the APIs are compatible.
 use Service::Vault;
@@ -37,9 +37,19 @@ sub perform {
 	info("#M{$ENV{GENESIS_ENVIRONMENT}} OpenBAO deployed successfully!");
 	info("");
 
-	# Check if we have pre-deploy data for automatic unsealing
-	my $lines = lines(run("safe -T $ENV{GENESIS_ENVIRONMENT} status 2>/dev/null | grep 'is sealed'"));
-	if ($lines) {
+	# Determine vault state via JSON status (exit code is non-zero when
+	# sealed or uninitialized, so we parse the output regardless).
+	my ($status_out) = run({ stderr => 0 },
+		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'status', '-format=json'
+	);
+
+	if (!$status_out) {
+		# Target may be stale (IP changed after delete/redeploy).
+		# _auto_init_if_needed will discover nodes via BOSH.
+		info("Could not reach OpenBAO at current target");
+	} elsif ($status_out =~ /"initialized"\s*:\s*false/) {
+		info("OpenBAO is #Y{uninitialized}");
+	} elsif ($status_out =~ /"sealed"\s*:\s*true/) {
 		info("OpenBAO is currently #Y{sealed} - unsealing is required to access secrets");
 		if (-s $ENV{GENESIS_PREDEPLOY_DATAFILE}) {
 			info("Found unseal keys from pre-deploy, attempting automatic unseal...");
