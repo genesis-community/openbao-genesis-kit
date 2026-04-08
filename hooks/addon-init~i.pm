@@ -49,7 +49,7 @@ sub perform {
 
 			# Target the OpenBAO node
 			my ( $target_out, $target_rc ) =
-			  run( { stderr => 1 }, 'safe', 'target', "https://$ip", '-k', $env->name );
+			  run( { stderr => 1 }, 'safe', 'target', '--no-strongbox', "https://$ip", '-k', $env->name );
 
 			if ( $target_rc != 0 ) {
 				info("#R{Failed to target OpenBAO at $ip}, trying next node...");

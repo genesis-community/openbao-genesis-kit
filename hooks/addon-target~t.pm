@@ -54,7 +54,7 @@ sub perform {
   }
 
   # Target OpenBAO
-  my ($t_out, $t_rc) = run({ stderr=>1 }, 'safe', 'target', "https://$domain", '-k', $env_name);
+  my ($t_out, $t_rc) = run({ stderr=>1 }, 'safe', 'target', '--no-strongbox', "https://$domain", '-k', $env_name);
   bail("safe target failed") if $t_rc;
 
   # Authenticate (interactive if needed)

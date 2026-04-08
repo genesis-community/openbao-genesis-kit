@@ -291,7 +291,7 @@ sub _auto_init_if_needed {
 				# Try to target an OpenBAO node
 				foreach my $ip (@ips) {
 					my ($target_out, $target_rc) = run({ stderr => 0 },
-						'safe', 'target', "https://$ip", '-k', $ENV{GENESIS_ENVIRONMENT}
+						'safe', 'target', '--no-strongbox', "https://$ip", '-k', $ENV{GENESIS_ENVIRONMENT}
 					);
 
 					if ($target_rc == 0) {
