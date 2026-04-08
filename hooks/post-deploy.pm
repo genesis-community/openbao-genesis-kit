@@ -328,7 +328,7 @@ sub _auto_init_if_needed {
 		my $init_hook = Genesis::Hook::Addon::OpenBao::Init->init(
 			kit => $self->{kit},
 			env => $self->{env},
-			command => 'init',
+			script => 'init',
 			args => []
 		);
 
