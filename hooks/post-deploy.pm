@@ -37,6 +37,10 @@ sub perform {
 	info("#M{$ENV{GENESIS_ENVIRONMENT}} OpenBAO deployed successfully!");
 	info("");
 
+	# Ensure safe target exists for this environment. On fresh deploys
+	# the target may not exist yet until BOSH node discovery creates it.
+	$self->_ensure_target();
+
 	# Determine vault state via JSON status (exit code is non-zero when
 	# sealed or uninitialized, so we parse the output regardless).
 	my ($status_out) = run({ stderr => 0 },
@@ -276,48 +280,46 @@ EOF
 	}
 }
 
+sub _ensure_target {
+	my ($self) = @_;
+
+	# Check if the target already works (exit code 2 is fine — means
+	# sealed/uninitialized but reachable; no output means unreachable)
+	my ($check_out) = run({ stderr => 0 },
+		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'status', '-format=json'
+	);
+	return if $check_out;
+
+	# Discover OpenBAO VMs via BOSH and create the safe target
+	my ($bosh_out, $bosh_rc) = run({ stderr => 0 },
+		'bosh', '-e', $self->env->bosh->alias, '-d', $self->env->bosh->deployment,
+		'vms', '--json'
+	);
+	return unless $bosh_rc == 0 && $bosh_out;
+
+	eval {
+		my $data = JSON::PP::decode_json($bosh_out);
+		my @ips = map {$_->{ips}} @{$data->{Tables}[0]{Rows}};
+
+		foreach my $ip (@ips) {
+			my (undef, $target_rc) = run({ stderr => 0 },
+				'safe', 'target', '--no-strongbox', "https://$ip", '-k', $ENV{GENESIS_ENVIRONMENT}
+			);
+			last if $target_rc == 0;
+		}
+	};
+}
+
 sub _auto_init_if_needed {
 	my ($self) = @_;
 
-	# Check if vault is initialized
+	# Check if vault is initialized (target is already established by _ensure_target)
 	my ($status_out, $status_rc) = run({ stderr => 0 },
 		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'status'
 	);
 
-	# If we can't get status, try to find a reachable node
-	if ($status_rc != 0) {
-		# Get VMs to find OpenBAO IPs
-		my ($out, $rc) = run({ stderr => 0 },
-			'bosh', '-e', $self->env->bosh->alias, '-d', $self->env->bosh->deployment,
-			'vms', '--json'
-		);
-
-		if ($rc == 0 && $out) {
-			eval {
-				require JSON::PP;
-				my $data = JSON::PP::decode_json($out);
-				my @ips = map {$_->{ips}} @{$data->{Tables}[0]{Rows}};
-
-				# Try to target an OpenBAO node
-				foreach my $ip (@ips) {
-					my ($target_out, $target_rc) = run({ stderr => 0 },
-						'safe', 'target', '--no-strongbox', "https://$ip", '-k', $ENV{GENESIS_ENVIRONMENT}
-					);
-
-					if ($target_rc == 0) {
-						# Try status again
-						($status_out, $status_rc) = run({ stderr => 0 },
-							'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'status'
-						);
-						last if $status_rc == 0;
-					}
-				}
-			};
-		}
-	}
-
 	# Parse status to check if initialized
-	if ($status_rc == 0 && $status_out =~ /Initialized\s+false/) {
+	if ($status_out =~ /Initialized\s+false/) {
 		info("");
 		info("Detected #Y{uninitialized OpenBAO} - running automatic initialization...");
 
