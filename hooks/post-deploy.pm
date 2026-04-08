@@ -323,8 +323,8 @@ sub _auto_init_if_needed {
 		info("");
 		info("Detected #Y{uninitialized OpenBAO} - running automatic initialization...");
 
-		# Run the init addon using the Hook system
-		require Genesis::Hook::Addon::OpenBao::Init;
+		# Load and run the init addon
+		require $self->{kit}->path('hooks/addon-init~i.pm');
 		my $init_hook = Genesis::Hook::Addon::OpenBao::Init->init(
 			kit => $self->{kit},
 			env => $self->{env},
