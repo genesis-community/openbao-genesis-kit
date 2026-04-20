@@ -10,6 +10,7 @@ exodus:
   - 10.99.0.18
   is_director: false
   scale: null
+  services: vault
   url: https://10.99.0.16
   use_create_env: false
 instance_groups:
