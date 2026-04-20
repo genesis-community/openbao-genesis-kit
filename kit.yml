@@ -21,8 +21,6 @@ supports:
 - vsphere
 - stackit
 
-required_configs:
-  blueprint: []
 
 certificates:
   base:
