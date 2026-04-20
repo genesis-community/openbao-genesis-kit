@@ -1,4 +1,4 @@
-package Genesis::Hook::Info::OpenBao v1.0.0;
+package Genesis::Hook::Info::Openbao v1.0.0;
 
 use v5.20;
 use warnings;

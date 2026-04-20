@@ -1,4 +1,4 @@
-package Genesis::Hook::Addon::OpenBao::Target v1.0.0;
+package Genesis::Hook::Addon::Openbao::Target v1.0.0;
 use v5.20;
 use warnings; # Genesis min perl version is 5.20
 use Genesis qw/bail info run read_json_from/;
