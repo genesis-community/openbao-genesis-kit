@@ -39,4 +39,12 @@ var _ = Describe("OpenBAO Kit", func() {
 			CPI:         "stackit",
 		})
 	})
+
+	Describe("ocfp", func() {
+		Test(Environment{
+			Name:        "ocfp-mgmt",
+			CloudConfig: "aws-ocfp",
+			CPI:         "aws",
+		})
+	})
 })

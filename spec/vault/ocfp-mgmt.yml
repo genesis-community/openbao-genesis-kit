@@ -1,0 +1,50 @@
+secret/exodus/proto-main/bosh:
+  url: https://10.0.0.1:25555
+  admin_username: admin
+  admin_password: admin
+  ca_cert: mock-ca-cert
+  kit_name: bosh
+  iaas: aws
+
+secret/exodus/proto-main/bosh/network/azs/z1:
+  name: z1
+secret/exodus/proto-main/bosh/network/azs/z2:
+  name: z2
+secret/exodus/proto-main/bosh/network/azs/z3:
+  name: z3
+
+secret/config/ocfp/mgmt/net/subnets/ocfp-0:
+  az: z1
+secret/config/ocfp/mgmt/net/subnets/ocfp-0/reserved-ips:
+  openbao_ip: 10.0.2.197
+  openbao_a:  10.0.2.196
+  openbao_b:  10.0.2.198
+
+secret/config/ocfp/mgmt/net/subnets/ocfp-1:
+  az: z2
+secret/config/ocfp/mgmt/net/subnets/ocfp-1/reserved-ips:
+  openbao_ip: 10.0.3.197
+  openbao_a:  10.0.3.196
+  openbao_b:  10.0.3.198
+
+secret/config/ocfp/mgmt/net/subnets/ocfp-2:
+  az: z3
+secret/config/ocfp/mgmt/net/subnets/ocfp-2/reserved-ips:
+  openbao_ip: 10.0.4.197
+  openbao_a:  10.0.4.196
+  openbao_b:  10.0.4.198
+
+secret/ocfp/mgmt/openbao/certs/ca:
+  certificate: <!{meta.vault}/certs/ca:certificate!>
+  combined:    <!{meta.vault}/certs/ca:combined!>
+  crl:         <!{meta.vault}/certs/ca:crl!>
+  key:         <!{meta.vault}/certs/ca:key!>
+  serial:      <!{meta.vault}/certs/ca:serial!>
+secret/ocfp/mgmt/openbao/certs/peer:
+  certificate: <!{meta.vault}/certs/peer:certificate!>
+  combined:    <!{meta.vault}/certs/peer:combined!>
+  key:         <!{meta.vault}/certs/peer:key!>
+secret/ocfp/mgmt/openbao/certs/vault:
+  certificate: <!{meta.vault}/certs/vault:certificate!>
+  combined:    <!{meta.vault}/certs/vault:combined!>
+  key:         <!{meta.vault}/certs/vault:key!>
