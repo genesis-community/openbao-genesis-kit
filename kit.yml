@@ -18,6 +18,7 @@ supports:
 - azure
 - gcp
 - openstack
+- pve
 - vsphere
 - stackit
 
