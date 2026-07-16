@@ -15,7 +15,7 @@ workflows (init, seal, unseal, target, auth) work unchanged.
 
 ## Version Compatibility
 
-This kit requires Genesis 3.1.0 or higher. It is currently at version 1.0.0.
+This kit requires Genesis 3.1.0 or higher. It is currently at version 1.1.0.
 
 ## Features
 
@@ -167,7 +167,7 @@ To use custom cloud config types:
 ---
 kit:
   name: openbao
-  version: 1.0.0
+  version: 1.1.0
 
 genesis:
   env: acme-us-east-1-prod
@@ -184,7 +184,7 @@ To deploy on Azure:
 ---
 kit:
   name: openbao
-  version: 1.0.0
+  version: 1.1.0
 
 genesis:
   env: azure-eu-prod
@@ -199,7 +199,7 @@ To deploy using OCFP configurations:
 ---
 kit:
   name: openbao
-  version: 1.0.0
+  version: 1.1.0
   features:
     - ocfp
 
@@ -222,6 +222,8 @@ itself. An operator **must** intervene to unseal it, or it will remain
 inaccessible.
 
 ## History
+
+Version 1.1.0 upgrades OpenBao to v2.6.0 via openbao-boshrelease v0.3.0.
 
 Version 1.0.0 is the initial release of the OpenBAO Genesis Kit, providing
 Raft-based storage, BPM process management, and full compatibility with the

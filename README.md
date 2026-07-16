@@ -138,7 +138,7 @@ Minimal environment file:
 ---
 kit:
   name:    openbao
-  version: 1.0.0
+  version: 1.1.0
 
 genesis:
   env: us-east-prod
