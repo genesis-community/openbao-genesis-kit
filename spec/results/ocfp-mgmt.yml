@@ -48,9 +48,9 @@ instance_groups:
 name: ocfp-mgmt-openbao
 releases:
 - name: openbao
-  sha1: sha256:63482d7d4ca2be2547f774b6f2039d35a8475ba0c19d86f63eb5ed9894ca5f6a
-  url: https://github.com/cloudfoundry-community/openbao-boshrelease/releases/download/v0.2.0/openbao-release-v0.2.0.tgz
-  version: 0.2.0
+  sha1: sha256:7d5964268c72e104bf68ad80bcdc76a6c64c4f4c6cd3dee70a54430b9c5cfa9f
+  url: https://github.com/cloudfoundry-community/openbao-boshrelease/releases/download/v0.3.0/openbao-0.3.0.tgz
+  version: 0.3.0
 - name: bpm
   sha1: sha256:51f2eab4b59939db733beb8f7905e461a732cc29d85e54f151f576cd5bf0c414
   url: https://bosh.io/d/github.com/cloudfoundry/bpm-release?v=1.4.22
