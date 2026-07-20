@@ -92,6 +92,14 @@ The following features are supported by this kit:
   availability set to deploy the OpenBAO nodes across. This parameter does
   not have any effect on other platforms. Defaults to `openbao_as`.
 
+- `openbao_peer_servername` - The TLS server name verified against the peer
+  certificate when Raft nodes join each other. It must match a SAN in the
+  peer certificate, and defaults to `openbao_raft_peer` to match the SAN this
+  kit generates. Blocs first deployed by an older kit whose peer certificate
+  carries the legacy SAN `openbao.bosh` must either set this to `openbao.bosh`
+  or rotate the peer certificate (see Certificate Management). Without a match,
+  Raft `retry_join` fails TLS verification and the cluster never forms HA.
+
 ## OCFP-specific Parameters
 
 - `ocfp-subnet-prefix` - specifies the subnet prefix for subnets that will be
@@ -141,6 +149,12 @@ The kit manages three certificate chains:
 
 - **Peer** - Used for Raft peer-to-peer mTLS communication between cluster
   nodes. Valid for 10 years. SANs include `openbao_raft_peer` and `127.0.0.1`.
+  Raft `retry_join` verifies this certificate against `openbao_peer_servername`
+  (default `openbao_raft_peer`) rather than the per-node join address, since
+  the shared peer certificate can never carry every node's DNS name or IP. To
+  move a bloc with the legacy `openbao.bosh` peer SAN onto the default, rotate
+  just this certificate with `genesis <env> rotate-secrets certs/peer`, then
+  redeploy; the CA is untouched, so already-joined nodes keep validating.
 
 - **Vault** - Client-facing TLS certificate for API access. Valid for 2 years.
   SANs include the configured domain and `127.0.0.1`.

@@ -25,6 +25,7 @@ instance_groups:
             ca:          (( vault meta.vault "/certs/ca:certificate" ))
             certificate: (( vault meta.vault "/certs/peer:certificate" ))
             key:         (( vault meta.vault "/certs/peer:key" ))
+            servername:  (( grab params.openbao_peer_servername || "openbao_raft_peer" ))
         tls:
           certificate: (( vault meta.vault "/certs/vault:certificate" ))
           key:         (( vault meta.vault "/certs/vault:key" ))
