@@ -112,17 +112,19 @@ sub perform {
 	bail("Could not find any reachable OpenBAO nodes to initialize.");
 }
 
-# _store_seal_keys - Parse and store seal keys from safe init output {{{
-sub _store_seal_keys {
-	my ( $self, $init_output, $target_name ) = @_;
+# _parse_seal_keys - Parse seal keys and root token out of safe init output {{{
+# Returns (\@seal_keys, $root_token) on success, or (undef, undef) if no seal
+# keys could be parsed. Shared by _store_seal_keys() and the "safe already
+# stored the keys" branch in perform(), so both paths can back the keys up to
+# the deploying vault via the same code.
+sub _parse_seal_keys {
+	my ( $self, $init_output ) = @_;
 
-	# Validate input
 	unless ($init_output) {
 		info("#R{ERROR:} No output from OpenBAO initialization");
-		return 0;
+		return ( undef, undef );
 	}
 
-	# Parse seal keys from the output
 	my @seal_keys;
 	my $root_token;
 
@@ -149,17 +151,30 @@ sub _store_seal_keys {
 		}
 	}
 
-	# Validate we found seal keys
 	unless (@seal_keys) {
 		info("#R{ERROR:} No seal keys found in initialization output");
 		info( "Debug: First 500 chars of output: " . substr( $init_output, 0, 500 ) );
-		return 0;
+		return ( undef, undef );
 	}
 
 	unless ($root_token) {
 		info("#R{ERROR:} No root token found in initialization output");
-		return 0;
+		return ( undef, undef );
 	}
+
+	return ( \@seal_keys, $root_token );
+}
+
+# }}}
+
+# _store_seal_keys - Parse and store seal keys from safe init output {{{
+sub _store_seal_keys {
+	my ( $self, $init_output, $target_name ) = @_;
+
+	my ( $seal_keys_ref, $root_token ) = $self->_parse_seal_keys($init_output);
+	return 0 unless $seal_keys_ref;
+
+	my @seal_keys = @$seal_keys_ref;
 
 	info( "Found " . scalar(@seal_keys) . " seal keys to store" );
 
