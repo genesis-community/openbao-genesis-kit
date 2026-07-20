@@ -325,7 +325,7 @@ sub _auto_init_if_needed {
 
 		# Load and run the init addon
 		require $self->{kit}->path('hooks/addon-init~i.pm');
-		my $init_hook = Genesis::Hook::Addon::OpenBao::Init->init(
+		my $init_hook = Genesis::Hook::Addon::Openbao::Init->init(
 			kit => $self->{kit},
 			env => $self->{env},
 			script => 'init',
