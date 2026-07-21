@@ -70,7 +70,7 @@ The following features are supported by this kit:
   Defaults to `z1`, `z2`, and `z3`.
 
 - `stemcell_os` - The operating system stemcell you want to deploy on.
-  (default: `ubuntu-jammy`)
+  (default: `ubuntu-noble`)
 
 - `stemcell_version` - The specific version of the stemcell you want to deploy
   on. (default: `latest`)
