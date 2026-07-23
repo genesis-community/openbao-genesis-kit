@@ -126,12 +126,11 @@ sub _setup_doomsday_approle {
 	info("");
 	info("Setting up doomsday monitoring approle...");
 
-	# Enable approle auth if not already enabled
-	my ($enable_out, $enable_rc) = run({ stderr => 0 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'auth', 'enable', 'approle', '2>&1', '||', 'true'
-	);
+	# Enable approle auth if not already enabled. Retried with a bounded
+	# backoff - see _enable_approle_with_retry.
+	my ($enable_out, $enable_ok) = $self->_enable_approle_with_retry;
 
-	if ($enable_out =~ /Success\! Enabled approle auth method/ || $enable_out =~ /path is already in use/) {
+	if ($enable_ok) {
 		info("#G{[ok]} AppRole auth enabled");
 	} else {
 		info("#Y{WARNING:} Could not enable approle auth: $enable_out");
@@ -278,6 +277,43 @@ EOF
 	} else {
 		info("#R{ERROR:} Failed to store doomsday credentials in exodus");
 	}
+}
+
+# _enable_approle_with_retry - enable approle auth with a bounded readiness gate {{{
+# Immediately after a fresh deploy, `auth status` can already succeed while
+# the bloc-vault is still settling underneath it (e.g. Raft leader election
+# not yet complete), so `vault auth enable approle` can fail transiently
+# even though a retry moments later would succeed (seen on drgao). Retry
+# with a short backoff capped at ~30s total before giving up; this remains
+# non-fatal either way, same as before.
+sub _enable_approle_with_retry {
+	my ($self) = @_;
+
+	my @backoff = (2, 4, 8, 16); # seconds between attempts; sums to ~30s
+	my $enable_out = '';
+
+	for (my $attempt = 0; ; $attempt++) {
+		($enable_out) = run({ stderr => 0 },
+			'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'auth', 'enable', 'approle', '2>&1', '||', 'true'
+		);
+
+		return ($enable_out, 1)
+			if $enable_out =~ /Success\! Enabled approle auth method/ || $enable_out =~ /path is already in use/;
+
+		last if $attempt >= @backoff;
+
+		my $wait = $backoff[$attempt];
+		info("  #Y{!} AppRole auth not ready yet, retrying in ${wait}s...");
+		$self->_backoff_sleep($wait);
+	}
+
+	return ($enable_out, 0);
+}
+# }}}
+
+sub _backoff_sleep {
+	my ($self, $seconds) = @_;
+	sleep($seconds);
 }
 
 sub _ensure_target {
