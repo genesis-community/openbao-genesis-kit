@@ -31,7 +31,7 @@ instance_groups:
             ca: <!{meta.vault}/certs/ca:certificate!>
             certificate: <!{meta.vault}/certs/peer:certificate!>
             key: <!{meta.vault}/certs/peer:key!>
-            servername: openbao_raft_peer
+            servername: openbao.bosh
         tls:
           certificate: <!{meta.vault}/certs/vault:certificate!>
           key: <!{meta.vault}/certs/vault:key!>

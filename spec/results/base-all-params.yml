@@ -26,7 +26,7 @@ instance_groups:
             ca: <!{meta.vault}/certs/ca:certificate!>
             certificate: <!{meta.vault}/certs/peer:certificate!>
             key: <!{meta.vault}/certs/peer:key!>
-            servername: openbao_raft_peer
+            servername: test.domain.com
         tls:
           certificate: <!{meta.vault}/certs/vault:certificate!>
           key: <!{meta.vault}/certs/vault:key!>
