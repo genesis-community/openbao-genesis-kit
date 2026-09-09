@@ -276,17 +276,18 @@ sub _load_stored_seal_keys {
 		);
 
 		if ($read_rc == 0 && $key_data) {
-			if ($key_data =~ /^[^:]+:(.+)$/m) {
-				my $key_value = $1;
-				$key_value =~ s/^\s+|\s+$//g;
+			# `safe get path:key` prints the bare value. Older safe builds printed
+			# `key: value`, so accept both shapes before validating the key.
+			my $key_value = $key_data;
+			$key_value = $1 if $key_value =~ /^\s*key$i\s*:\s*(.+)$/m;
+			$key_value =~ s/^\s+|\s+$//g;
 
-				if ($key_value =~ /^[A-Za-z0-9+\/=]+$/) {
-					push @keys, $key_value;
-					info("  #G{+} Found seal key $i");
-				} else {
-					info("  #Y{!} Invalid seal key $i format");
-					$errors++;
-				}
+			if ($key_value =~ /^[A-Za-z0-9+\/=]+$/) {
+				push @keys, $key_value;
+				info("  #G{+} Found seal key $i");
+			} else {
+				info("  #Y{!} Invalid seal key $i format");
+				$errors++;
 			}
 		} else {
 			info("  #R{x} Failed to read seal key $i");
