@@ -3,6 +3,7 @@ package Genesis::Hook::Addon::Openbao::Unseal v1.0.0;
 use v5.20;
 use warnings; # Genesis min perl version is 5.20
 use Genesis qw/bail info run read_json_from/;
+use Genesis::UI qw/prompt_for_password/;
 # Only needed for development
 BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'./.genesis/lib'}
 
@@ -196,23 +197,47 @@ sub _submit_unseal_key {
 # }}}
 
 # _manual_unseal_node - prompt for keys and unseal one node interactively {{{
+# Reads each key with terminal echo off and submits it straight to the node's
+# own sys/unseal endpoint. It never touches the env's safe target, because
+# repointing that alias at a sealed peer breaks every later safe call and
+# strands the operator without auth. Returns 1 when the node ends up unsealed.
 sub _manual_unseal_node {
 	my ($self, $env, $ip) = @_;
-
-	my (undef, $target_rc) = run({ stderr => 0 },
-		'safe', 'target', '--no-strongbox', "https://$ip", '-k', $env->name
-	);
-
-	unless ($target_rc == 0) {
-		info("  #R{x} Could not target node at $ip for manual unseal");
+	my $status = $self->_seal_status($ip);
+	unless ($status) {
+		info("  #R{x} Could not read seal status from $ip for manual unseal");
 		return 0;
 	}
+	my $threshold = $status->{t} || 3;
+	info("  Enter the unseal keys for the node at $ip ($threshold needed, input is hidden):");
+	my $attempts = 0;
+	while ($attempts < $threshold + 2) {
+		my $key = prompt_for_password("  Key: ");
+		last if !defined($key) || $key eq '';
+		$attempts++;
+		my $sealed = $self->_submit_unseal_key($ip, $key);
+		if (!defined $sealed) {
+			info("  #Y{!} node at $ip rejected that key or did not answer");
+			next;
+		}
+		return 1 unless $sealed;
+	}
+	my $final = $self->_node_sealed($ip);
+	return defined($final) && !$final ? 1 : 0;
+}
+# }}}
 
-	info("  Please enter the unseal keys for the node at $ip when prompted:");
-	run({ interactive => 1 }, 'safe', '-T', $env->name, 'unseal');
-
-	my $sealed = $self->_node_sealed($ip);
-	return defined($sealed) && !$sealed ? 1 : 0;
+# _seal_status - fetch a node's full seal-status document {{{
+sub _seal_status {
+	my ($self, $ip) = @_;
+	my $curl_opts = $ENV{CURLOPTS} // '';
+	my $timeout   = $ENV{TIMEOUT}  // 5;
+	my ($out, $rc) = run({ stderr => 0 },
+		"curl -Lsk $curl_opts -m$timeout https://$ip/v1/sys/seal-status"
+	);
+	return undef unless $rc == 0 && $out;
+	my $status = eval { JSON::PP::decode_json($out) };
+	return ref($status) eq 'HASH' ? $status : undef;
 }
 # }}}
 
