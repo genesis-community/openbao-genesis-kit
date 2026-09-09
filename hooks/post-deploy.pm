@@ -67,13 +67,15 @@ sub perform {
 					"  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
 			} else {
 				info("  #g{#\@{+} OpenBAO unsealed successfully!}");
+				$self->_unseal_all_nodes();
 			}
 		} else {
 			info("No pre-deploy seal keys found - cannot unseal automatically");
 			$self->_show_manual_instructions;
 		}
 	} else {
-		info("OpenBAO is currently #G{unsealed} - no further action is needed");
+		info("OpenBAO is currently #G{unsealed} - checking the remaining Raft nodes");
+		$self->_unseal_all_nodes();
 	}
 
 	# Check if this is the first deployment and auto-initialize if needed
@@ -403,6 +405,7 @@ sub _auto_init_if_needed {
 
 					if ($unseal_rc == 0) {
 						info("#G{#@{+} OpenBAO unsealed successfully!}");
+						$self->_unseal_all_nodes();
 					} else {
 						info("#Y{WARNING:} Failed to unseal OpenBAO automatically");
 						info("You can unseal manually with: #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
@@ -413,6 +416,31 @@ sub _auto_init_if_needed {
 			info("#R{ERROR:} Automatic initialization failed");
 			info("You can initialize manually with: #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- init}");
 		}
+	}
+}
+# }}}
+
+# _unseal_all_nodes - run the unseal addon so every Raft node is unsealed {{{
+# The safe target only reaches one node, and each Raft HA node keeps its own
+# sealed barrier, so a fresh deploy or a rolling update leaves the peers sealed
+# even when the targeted node is open. The unseal addon enumerates the nodes
+# through BOSH and uses the stored seal keys; failure here is reported, never
+# fatal, because the targeted node is already usable.
+sub _unseal_all_nodes {
+	my ($self) = @_;
+	eval {
+		require $self->{kit}->path('hooks/addon-unseal~u.pm');
+		my $unseal_hook = Genesis::Hook::Addon::Openbao::Unseal->init(
+			kit => $self->{kit},
+			env => $self->{env},
+			script => 'unseal',
+			args => []
+		);
+		$unseal_hook->perform();
+	};
+	if ($@) {
+		info("#Y{WARNING:} Could not verify the remaining OpenBAO nodes: $@");
+		info("You can unseal them with: #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
 	}
 }
 # }}}
