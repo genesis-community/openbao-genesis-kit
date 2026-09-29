@@ -55,27 +55,20 @@ sub perform {
 		info("OpenBAO is #Y{uninitialized}");
 	} elsif ($status_out =~ /"sealed"\s*:\s*true/) {
 		info("OpenBAO is currently #Y{sealed} - unsealing is required to access secrets");
-		if (-s $ENV{GENESIS_PREDEPLOY_DATAFILE}) {
-			info("Found unseal keys from pre-deploy, attempting automatic unseal...");
-			my $ok = run({interactive => 1, passfail => 1},
-				"safe -T $ENV{GENESIS_ENVIRONMENT} unseal < $ENV{GENESIS_PREDEPLOY_DATAFILE}"
-			);
-			if (!$ok) {
-				info(
-					"  #R{\@{x} Failed to unseal OpenBAO automatically}\n\n".
-					"You can try to unseal manually with:\n".
-					"  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
-			} else {
-				info("  #g{#\@{+} OpenBAO unsealed successfully!}");
-				$self->_unseal_all_nodes();
-			}
+		# Every node gets the pre-deploy keys straight through its own
+		# sys/unseal. Unsealing only the safe target and then reading the
+		# stored keys back through it fails, because a lone unsealed node
+		# forwards reads to an active node that does not exist yet.
+		my $keys = $self->_predeploy_seal_keys;
+		if (@$keys) {
+			info("Found unseal keys from pre-deploy, unsealing every node with them...");
 		} else {
-			info("No pre-deploy seal keys found - cannot unseal automatically");
-			$self->_show_manual_instructions;
+			info("No pre-deploy seal keys found - looking for the stored and backup copies");
 		}
+		$self->_show_manual_instructions unless $self->_unseal_all_nodes($keys);
 	} else {
 		info("OpenBAO is currently #G{unsealed} - checking the remaining Raft nodes");
-		$self->_unseal_all_nodes();
+		$self->_unseal_all_nodes($self->_predeploy_seal_keys);
 	}
 
 	# Check if this is the first deployment and auto-initialize if needed
@@ -387,7 +380,7 @@ sub _auto_init_if_needed {
 				# Get seal keys and unseal
 				my @keys;
 				for (my $i = 1; $i <= 5; $i++) {
-					my ($key_out, $key_rc) = run({ stderr => 0 },
+					my ($key_out, $key_rc) = run({ stderr => 0, redact_output => 1 },
 						'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'get', "secret/vault/seal/keys:key$i"
 					);
 					if ($key_rc == 0 && $key_out) {
@@ -405,7 +398,7 @@ sub _auto_init_if_needed {
 
 					if ($unseal_rc == 0) {
 						info("#G{#@{+} OpenBAO unsealed successfully!}");
-						$self->_unseal_all_nodes();
+						$self->_unseal_all_nodes(\@keys);
 					} else {
 						info("#Y{WARNING:} Failed to unseal OpenBAO automatically");
 						info("You can unseal manually with: #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
@@ -420,28 +413,47 @@ sub _auto_init_if_needed {
 }
 # }}}
 
+# _predeploy_seal_keys - the seal keys the pre-deploy hook saved {{{
+# pre-deploy writes one key per line to GENESIS_PREDEPLOY_DATAFILE. Returns
+# an arrayref of the well-formed keys, possibly empty, and never logs a value.
+sub _predeploy_seal_keys {
+	my ($self) = @_;
+	my $file = $ENV{GENESIS_PREDEPLOY_DATAFILE};
+	return [] unless $file && -s $file;
+	open(my $fh, '<', $file) or return [];
+	my @keys = grep { /^[A-Za-z0-9+\/=]+\z/ } map { s/^\s+|\s+$//gr } <$fh>;
+	close($fh);
+	return \@keys;
+}
+# }}}
+
 # _unseal_all_nodes - run the unseal addon so every Raft node is unsealed {{{
 # The safe target only reaches one node, and each Raft HA node keeps its own
 # sealed barrier, so a fresh deploy or a rolling update leaves the peers sealed
 # even when the targeted node is open. The unseal addon enumerates the nodes
-# through BOSH and uses the stored seal keys; failure here is reported, never
-# fatal, because the targeted node is already usable.
+# through BOSH and unseals each one through its own API, using the keys
+# handed in here when there are any. Failure is reported, never fatal.
+# Returns 1 when every node ends up unsealed, else 0.
 sub _unseal_all_nodes {
-	my ($self) = @_;
-	eval {
+	my ($self, $keys) = @_;
+	my $ok = eval {
 		require $self->{kit}->path('hooks/addon-unseal~u.pm');
 		my $unseal_hook = Genesis::Hook::Addon::Openbao::Unseal->init(
 			kit => $self->{kit},
 			env => $self->{env},
 			script => 'unseal',
-			args => []
+			args => [],
+			seal_keys => $keys // [],
+			allow_prompts => $self->{interactive} ? 1 : 0,
 		);
 		$unseal_hook->perform();
 	};
 	if ($@) {
 		info("#Y{WARNING:} Could not verify the remaining OpenBAO nodes: $@");
 		info("You can unseal them with: #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
+		return 0;
 	}
+	return $ok ? 1 : 0;
 }
 # }}}
 

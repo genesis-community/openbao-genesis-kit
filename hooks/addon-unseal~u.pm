@@ -24,8 +24,10 @@ sub cmd_details {
 	"Unseal every node of the OpenBAO cluster, making it available for use.\n".
 	"Each Raft HA node keeps its own sealed barrier, so every node discovered\n".
 	"via BOSH is checked and unsealed independently.\n".
-	"If seal keys are stored in OpenBAO, they will be used automatically.\n".
-	"Otherwise, you will need to provide the unseal keys when prompted.\n";
+	"Seal keys are taken, in order, from the caller (post-deploy hands over\n".
+	"the keys it read before the deploy), from OpenBAO itself, and from the\n".
+	"backup copy in the deploying vault. If none of those has them, you will\n".
+	"need to provide the unseal keys when prompted.\n";
 }
 
 sub perform {
@@ -44,7 +46,7 @@ sub perform {
 	info("Found " . scalar(@$nodes) . " OpenBAO node(s) via BOSH.");
 	info("");
 
-	my $keys = $self->_load_stored_seal_keys;
+	my $keys = $self->_resolve_seal_keys;
 
 	my @results = map { $self->_unseal_node($_, $keys) } @$nodes;
 
@@ -54,6 +56,11 @@ sub perform {
 	info("Unseal summary:");
 	info("  " . ($_->{unsealed} ? '#G{+}' : '#R{x}') . " node $_->{index} $_->{short_ip}: $_->{message}")
 		for @results;
+
+	# With standby reads forwarded, nothing authenticated works until the
+	# unsealed nodes elect a leader, so wait for one whenever a quorum is open.
+	my $open = scalar(@results) - scalar(@sealed);
+	$self->_wait_for_active_node($nodes) if $open * 2 > scalar(@results);
 
 	info("");
 	if (!@sealed) {
@@ -123,6 +130,11 @@ sub _unseal_node {
 		info("  #Y{!} node $index ($short): automatic unseal failed, falling back to manual entry");
 	}
 
+	unless ($self->_may_prompt) {
+		info("  #R{x} node $index ($short): no working seal keys, and prompting is disabled");
+		return { index => $index, ip => $ip, short_ip => $short, unsealed => 0, message => 'sealed, no keys and no prompting' };
+	}
+
 	if ($self->_manual_unseal_node($env, $ip)) {
 		info("  #G{+} node $index ($short): unsealed (manual)");
 		return { index => $index, ip => $ip, short_ip => $short, unsealed => 1, message => 'unsealed manually' };
@@ -130,6 +142,16 @@ sub _unseal_node {
 
 	info("  #R{x} node $index ($short): failed to unseal");
 	return { index => $index, ip => $ip, short_ip => $short, unsealed => 0, message => 'failed to unseal' };
+}
+# }}}
+
+# _may_prompt - whether this run may ask the operator for keys {{{
+# post-deploy passes allow_prompts, which is false under -y or without a
+# terminal, so a deploy never blocks on a prompt. A direct
+# `genesis do <env> -- unseal` leaves it unset and may prompt.
+sub _may_prompt {
+	my ($self) = @_;
+	return exists($self->{allow_prompts}) ? ($self->{allow_prompts} ? 1 : 0) : 1;
 }
 # }}}
 
@@ -243,9 +265,111 @@ sub _seal_status {
 }
 # }}}
 
+# _resolve_seal_keys - pick the seal keys to unseal with {{{
+# Keys handed over by the caller come first, because they were read before
+# the deploy, while the cluster could still answer. OpenBAO's own copy only
+# answers once a leader exists, since standby nodes forward reads to the
+# active node, so it is useless while every node is sealed. The backup copy
+# in the deploying vault is the last automatic source. Returns an arrayref,
+# possibly empty, and never logs a value.
+sub _resolve_seal_keys {
+	my ($self) = @_;
+
+	my $handed = $self->{seal_keys};
+	if (ref($handed) eq 'ARRAY' && @$handed) {
+		info("Using " . scalar(@$handed) . " seal key(s) handed over by the deploy");
+		return $handed;
+	}
+
+	my $stored = $self->_load_stored_seal_keys;
+	return $stored if @$stored;
+
+	return $self->_load_backup_seal_keys;
+}
+# }}}
+
+# _load_backup_seal_keys - read the init addon's backup copy of the keys {{{
+# The init addon backs the keys up to the deploying vault under this env's
+# secrets_base (see _backup_seal_keys_to_provider in addon-init~i.pm). That
+# copy lives outside this cluster, so it stays readable while every node is
+# sealed. Returns an arrayref of key values ordered key1..keyN, possibly
+# empty, and never logs a value.
+sub _load_backup_seal_keys {
+	my ($self) = @_;
+
+	info("Checking the deploying vault for a backup copy of the seal keys...");
+
+	my $path = eval { $self->env->secrets_base() . 'vault/seal/keys' };
+	my $data = $path ? eval { $self->vault->get($path) } : undef;
+
+	unless (ref($data) eq 'HASH' && %$data) {
+		info("No backup seal keys found in the deploying vault");
+		return [];
+	}
+
+	my @names = sort { ($a =~ /(\d+)$/)[0] <=> ($b =~ /(\d+)$/)[0] }
+		grep { /^key\d+$/ } keys %$data;
+	my @keys = grep { defined($_) && /^[A-Za-z0-9+\/=]+\z/ } map { $data->{$_} } @names;
+
+	if (@keys) {
+		info("  #G{+} Found " . scalar(@keys) . " backup seal key(s) at #C{$path}");
+	} else {
+		info("No usable backup seal keys found at #C{$path}");
+	}
+	return \@keys;
+}
+# }}}
+
+# _wait_for_active_node - poll until one node reports itself active {{{
+# sys/health is unauthenticated and answers on standbys too (with a non-200
+# status), so each node is asked directly. Gives up after OPENBAO_ACTIVE_WAIT
+# seconds (default 90) and reports, without failing, because the unseal
+# itself has already succeeded. Returns 1 once a node is active, else 0.
+sub _wait_for_active_node {
+	my ($self, $nodes) = @_;
+
+	my $limit    = $ENV{OPENBAO_ACTIVE_WAIT} // 90;
+	my $interval = 3;
+	my $waited   = 0;
+
+	info("");
+	info("Waiting for the OpenBAO nodes to elect an active node...");
+	while (1) {
+		for my $node (@$nodes) {
+			my $health = $self->_node_health($node->{ip});
+			next unless $health && !$health->{sealed} && exists($health->{standby}) && !$health->{standby};
+			info("  #G{+} node $node->{index} (" . _short_ip($node->{ip}) . ") is the active node");
+			return 1;
+		}
+		last if $waited >= $limit;
+		$self->_pause($interval);
+		$waited += $interval;
+	}
+
+	info("  #Y{!} No active node after ${limit}s - authenticated calls will fail until one is elected");
+	return 0;
+}
+
+sub _pause { sleep($_[1]) }
+# }}}
+
+# _node_health - fetch a single node's sys/health document {{{
+sub _node_health {
+	my ($self, $ip) = @_;
+	my $curl_opts = $ENV{CURLOPTS} // '';
+	my $timeout   = $ENV{TIMEOUT}  // 5;
+	my ($out, $rc) = run({ stderr => 0 },
+		"curl -sk $curl_opts -m$timeout https://$ip/v1/sys/health"
+	);
+	return undef unless $rc == 0 && $out;
+	my $health = eval { JSON::PP::decode_json($out) };
+	return ref($health) eq 'HASH' ? $health : undef;
+}
+# }}}
+
 # _load_stored_seal_keys - retrieve seal keys stored in OpenBAO, if any {{{
-# Reads via the env's existing safe target, which only needs to reach one
-# reachable/unsealed node (typically the leader) to serve these reads.
+# Reads via the env's existing safe target. Standby nodes forward reads to
+# the active node, so this only works once the cluster has a leader.
 # Returns an arrayref of key values (possibly empty) - never logs a value.
 sub _load_stored_seal_keys {
 	my ($self) = @_;
@@ -258,7 +382,7 @@ sub _load_stored_seal_keys {
 	);
 
 	unless ($auth_rc == 0) {
-		info("Not authenticated - will prompt for seal keys manually per node");
+		info("Not authenticated with OpenBAO - its stored seal keys are out of reach");
 		return [];
 	}
 
@@ -273,7 +397,7 @@ sub _load_stored_seal_keys {
 		);
 		last if $exists_rc != 0;
 
-		my ($key_data, $read_rc) = run({ stderr => 0 },
+		my ($key_data, $read_rc) = run({ stderr => 0, redact_output => 1 },
 			'safe', '-T', $env->name, 'get', $key_path
 		);
 
@@ -284,7 +408,7 @@ sub _load_stored_seal_keys {
 			$key_value = $1 if $key_value =~ /^\s*key$i\s*:\s*(.+)$/m;
 			$key_value =~ s/^\s+|\s+$//g;
 
-			if ($key_value =~ /^[A-Za-z0-9+\/=]+$/) {
+			if ($key_value =~ /^[A-Za-z0-9+\/=]+\z/) {
 				push @keys, $key_value;
 				info("  #G{+} Found seal key $i");
 			} else {
@@ -301,7 +425,7 @@ sub _load_stored_seal_keys {
 		info("");
 		info("Found " . scalar(@keys) . " seal keys" . ($errors ? " with $errors errors" : ""));
 	} else {
-		info("No stored seal keys found - will prompt for keys manually per node");
+		info("No seal keys could be read from OpenBAO");
 	}
 
 	return \@keys;
@@ -319,23 +443,22 @@ sub _unseal_single_target {
 		'safe', '-T', $env->name, 'vault', 'status', '-format=json'
 	);
 
-	if ($status_rc == 0) {
-		eval {
-			my $status = JSON::PP::decode_json($status_out);
-			if (!$status->{sealed}) {
-				info("#G{+ OpenBAO is already unsealed}");
-				info("");
-				run({ interactive => 1 }, 'safe', '-T', $env->name, 'status');
-				return $self->done(1);
-			}
-		};
+	# A return inside the eval would only leave the eval, so decide there and
+	# return out here.
+	my $already_open = $status_rc == 0
+		&& eval { !JSON::PP::decode_json($status_out)->{sealed} };
+	if ($already_open) {
+		info("#G{+ OpenBAO is already unsealed}");
+		info("");
+		run({ interactive => 1 }, 'safe', '-T', $env->name, 'status');
+		return $self->done(1);
 	}
 
-	my $keys = $self->_load_stored_seal_keys;
+	my $keys = $self->_resolve_seal_keys;
 
 	if (@$keys) {
 		info("");
-		info("Attempting automatic unseal with stored keys...");
+		info("Attempting automatic unseal with the seal keys we found...");
 
 		my $keys_content = join("\n", @$keys) . "\n";
 		my ($unseal_out, $unseal_rc) = run(
@@ -353,6 +476,11 @@ sub _unseal_single_target {
 		info("#R{x Automatic unseal failed}");
 		info("");
 		info("Falling back to manual unseal...");
+	}
+
+	unless ($self->_may_prompt) {
+		info("#R{x} No seal keys available and prompting is disabled - OpenBAO stays sealed");
+		return $self->done(0);
 	}
 
 	info("");

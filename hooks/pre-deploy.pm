@@ -26,27 +26,18 @@ sub init {
 sub perform {
 	my ($self) = @_;
 
-	# We're just grabbing the vault unseal keys for post-deploy unsealing
-	my @matching_vaults = Service::Vault->find_by_target($self->env->name);
-	return $self->done() unless @matching_vaults;
-	my $vault = $matching_vaults[0];
+	# We're just grabbing the vault unseal keys for post-deploy unsealing.
+	# The cluster's own copy comes first; when the cluster cannot answer (for
+	# example because every node is sealed), the backup copy the init addon
+	# wrote to the deploying vault is the fallback.
 	$self->env->notify(" #iu{pre-deploy}: Retrieving unseal keys for post-deploy unsealing");
-	my $vault_seal_path = (grep {$_ =~ m{/vault/seal/keys$}} $vault->paths())[0];
-	if (!$vault_seal_path) {
-		info(
-			'[[  - #Yr{#@{!} warning} >>Seal keys path not found - '.
-			'automatic unseal will not be available'
-		);
-		return $self->done(1);
-	}
+	my ($keys, $source) = $self->_keys_from_cluster;
+	($keys, $source) = $self->_keys_from_deploying_vault unless $keys && @$keys;
 
-	my $keys = [values %{$vault->get($vault_seal_path)}];
-	if (!@$keys) {
+	unless ($keys && @$keys) {
 		info(
-			'[[  - #Yr{#@{!} warning} >>no unseal keys found at '.
-			'[#C{%s}:key[1-N]] - '.
-			'automatic unseal will not be available',
-			$vault_seal_path
+			'[[  - #Yr{#@{!} warning} >>no unseal keys found in the cluster or '.
+			'in the deploying vault - automatic unseal will not be available'
 		);
 		return $self->done(1);
 	}
@@ -55,11 +46,64 @@ sub perform {
 		'[[  - >>found %d unseal keys at '.
 		'[#C{%s}:key[1-N]] - '.
 		'automatic unseal will be available after deployment',
-		scalar(@$keys), $vault_seal_path
+		scalar(@$keys), $source
 	);
 	mkfile_or_fail($ENV{GENESIS_PREDEPLOY_DATAFILE}, join("\n", @$keys));
 
 	return $self->done(1);
+}
+# }}}
+
+# _keys_from_cluster - read the seal keys stored in the target cluster {{{
+# Returns (\@keys, $path), or an empty list when the cluster has no target,
+# no seal path, or cannot answer.
+sub _keys_from_cluster {
+	my ($self) = @_;
+
+	my @matching_vaults = Service::Vault->find_by_target($self->env->name);
+	return () unless @matching_vaults;
+	my $vault = $matching_vaults[0];
+
+	# The init addon stores the primary copy at exactly this path. Matching
+	# any */vault/seal/keys path would also match other environments' backup
+	# copies once this cluster holds their secrets, and hand over wrong keys.
+	my $vault_seal_path = 'secret/vault/seal/keys';
+	unless (eval { $vault->has($vault_seal_path) }) {
+		info(
+			'[[  - #Yr{#@{!} warning} >>Seal keys path not found in the cluster - '.
+			'checking the deploying vault for a backup copy'
+		);
+		return ();
+	}
+
+	my $data = eval { $vault->get($vault_seal_path) };
+	return (_seal_key_values($data), $vault_seal_path);
+}
+# }}}
+
+# _keys_from_deploying_vault - read the init addon's backup copy {{{
+# The init addon backs the keys up under this env's secrets_base in the
+# deploying vault (see _backup_seal_keys_to_provider in addon-init~i.pm).
+# Returns (\@keys, $path), or an empty list when there is no copy.
+sub _keys_from_deploying_vault {
+	my ($self) = @_;
+
+	my $path = eval { $self->env->secrets_base() . 'vault/seal/keys' };
+	return () unless $path;
+	my $data = eval { $self->env->secrets_store->service->get($path) };
+	my $keys = _seal_key_values($data);
+	return () unless @$keys;
+	return ($keys, $path);
+}
+# }}}
+
+# _seal_key_values - the key1..keyN values of a seal keys secret, in order {{{
+sub _seal_key_values {
+	my ($data) = @_;
+	return [] unless ref($data) eq 'HASH';
+	my @names = sort { ($a =~ /(\d+)$/)[0] <=> ($b =~ /(\d+)$/)[0] }
+		grep { /^key\d+$/ } keys %$data;
+	return [ grep { defined($_) && $_ ne '' } map { $data->{$_} } @names ];
 }
 # }}}
 
