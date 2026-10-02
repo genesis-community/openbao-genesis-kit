@@ -237,7 +237,10 @@ inaccessible.
 
 ## History
 
-Version 1.1.0 upgrades OpenBao to v2.6.0 via openbao-boshrelease v0.3.0.
+Version 1.1.0 upgrades OpenBao to v2.7.1 via openbao-boshrelease v0.3.5,
+which forwards standby reads to the active node by default. It adds PVE
+cloud-config support, defaults the stemcell to ubuntu-noble, unseals every
+Raft node after a deploy, and backs up the seal keys to the deploying vault.
 
 Version 1.0.0 is the initial release of the OpenBAO Genesis Kit, providing
 Raft-based storage, BPM process management, and full compatibility with the
