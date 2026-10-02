@@ -52,9 +52,9 @@ instance_groups:
 name: azure-openbao
 releases:
 - name: openbao
-  sha1: sha256:6615ee1aa218e00e71cf10b7f26cc098fd8e10e7e9a168ef2c46d8519ac99eb7
-  url: https://github.com/cloudfoundry-community/openbao-boshrelease/releases/download/v0.3.4/openbao-0.3.4.tgz
-  version: 0.3.4
+  sha1: sha256:0d76a4fc75a6ba4a8648f79dfa46701e70f57c92a7ce68656ea95e703fb76048
+  url: https://github.com/cloudfoundry-community/openbao-boshrelease/releases/download/v0.3.5/openbao-0.3.5.tgz
+  version: 0.3.5
 - name: bpm
   sha1: sha256:51f2eab4b59939db733beb8f7905e461a732cc29d85e54f151f576cd5bf0c414
   url: https://bosh.io/d/github.com/cloudfoundry/bpm-release?v=1.4.22

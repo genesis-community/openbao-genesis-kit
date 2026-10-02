@@ -1,5 +1,5 @@
 releases:
 - name: openbao
-  version: 0.3.4
-  url: https://github.com/cloudfoundry-community/openbao-boshrelease/releases/download/v0.3.4/openbao-0.3.4.tgz
-  sha1: sha256:6615ee1aa218e00e71cf10b7f26cc098fd8e10e7e9a168ef2c46d8519ac99eb7
+  version: 0.3.5
+  url: https://github.com/cloudfoundry-community/openbao-boshrelease/releases/download/v0.3.5/openbao-0.3.5.tgz
+  sha1: sha256:0d76a4fc75a6ba4a8648f79dfa46701e70f57c92a7ce68656ea95e703fb76048
