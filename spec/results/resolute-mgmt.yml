@@ -1,0 +1,68 @@
+exodus:
+  bosh: proto-main
+  ca: <!{meta.vault}/certs/ca:certificate!>
+  domain: openbao.bosh
+  features: ocfp,resolute
+  iaas: aws
+  ips: 10.0.2.197,10.0.3.197,10.0.4.197
+  is_director: false
+  scale: null
+  services: vault
+  url: https://10.0.2.197
+  use_create_env: false
+instance_groups:
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 3
+  jobs:
+  - name: openbao
+    properties:
+      openbao:
+        default_lease_ttl: 768h
+        log_level: info
+        max_lease_ttl: 768h
+        peer:
+          tls:
+            ca: <!{meta.vault}/certs/ca:certificate!>
+            certificate: <!{meta.vault}/certs/peer:certificate!>
+            key: <!{meta.vault}/certs/peer:key!>
+            servername: openbao.bosh
+        tls:
+          certificate: <!{meta.vault}/certs/vault:certificate!>
+          key: <!{meta.vault}/certs/vault:key!>
+        ui: true
+    release: openbao
+  - name: bpm
+    release: bpm
+  name: openbao
+  networks:
+  - name: resolute-mgmt.openbao.net-openbao
+    static_ips:
+    - 10.0.2.197
+    - 10.0.3.197
+    - 10.0.4.197
+  persistent_disk_type: resolute-mgmt.openbao.disk-openbao
+  stemcell: default
+  vm_type: resolute-mgmt.openbao.vm-openbao
+name: resolute-mgmt-openbao
+releases:
+- name: openbao
+  sha1: sha256:0d76a4fc75a6ba4a8648f79dfa46701e70f57c92a7ce68656ea95e703fb76048
+  url: https://github.com/cloudfoundry-community/openbao-boshrelease/releases/download/v0.3.5/openbao-0.3.5.tgz
+  version: 0.3.5
+- name: bpm
+  sha1: sha256:51f2eab4b59939db733beb8f7905e461a732cc29d85e54f151f576cd5bf0c414
+  url: https://bosh.io/d/github.com/cloudfoundry/bpm-release?v=1.4.22
+  version: 1.4.22
+stemcells:
+- alias: default
+  os: ubuntu-resolute
+  version: "0.184"
+update:
+  canaries: 1
+  canary_watch_time: 30000-120000
+  max_in_flight: 1
+  serial: true
+  update_watch_time: 30000-120000

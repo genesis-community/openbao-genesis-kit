@@ -1,0 +1,14 @@
+---
+kit:
+  name:    dev
+  version: latest
+  features:
+  - resolute
+
+genesis:
+  env:    resolute
+  entomb: false
+
+params:
+  auxiliary_vault: true
+  stemcell_version: "0.184"

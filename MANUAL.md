@@ -40,6 +40,9 @@ The following features are supported by this kit:
 - `azure` - Configures the deployment for Microsoft Azure, including setting
   up availability sets for the OpenBAO nodes.
 
+- `resolute` - **Experimental.** Deploys on the ubuntu-resolute stemcell
+  instead of ubuntu-noble. See [Ubuntu Resolute Stemcells](#ubuntu-resolute-stemcells).
+
 ## Base Parameters
 
 - `openbao_domain` - Domain for OpenBAO certs to be signed for. Defaults to
@@ -223,6 +226,29 @@ genesis:
 params:
   ocfp-instances: 3
 ```
+
+## Ubuntu Resolute Stemcells
+
+The kit deploys OpenBAO on ubuntu-noble stemcells unless we ask for something else. Adding the `resolute` feature moves the openbao instance group onto ubuntu-resolute.
+
+```yaml
+kit:
+  features:
+  - resolute
+
+params:
+  stemcell_version: "0.184"
+```
+
+The feature is experimental, so we recommend trying it on a canary cluster before we point anything real at it. It sets the stemcell `os` to `ubuntu-resolute`, and `stemcell_version` still selects the version, which defaults to `latest`. We pin it to a resolute version such as `"0.184"`, so that a newer noble upload is never picked up by accident. The feature works the same with or without `ocfp`. Because the feature owns the stemcell os, an environment that sets `params.stemcell_os` to anything else is refused, and so is an environment that sets `params.stemcell_os` to `ubuntu-resolute` without turning the feature on.
+
+Before the first deploy we need to do two things on the director.
+
+- Upload the resolute stemcell to the director that deploys OpenBAO, since both the compilation VMs and the instances need it.
+
+- Make sure the director's runtime config carries bosh-dns 1.39.31 or later. Earlier bosh-dns releases do not run on resolute.
+
+The kit's releases are unchanged, and the bpm release it uses runs fine on resolute. Resolute ships without runit, so the `chpst` command is missing. A job whose start script drops privileges with `chpst` hangs on resolute, and we have to switch it to `setpriv` or bpm before its release can run there. We should check any job we add to the deployment for `chpst` before we move it to resolute.
 
 ## Caveats
 

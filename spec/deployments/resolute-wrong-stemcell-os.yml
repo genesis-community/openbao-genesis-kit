@@ -1,0 +1,14 @@
+---
+kit:
+  name:    dev
+  version: latest
+  features:
+  - resolute
+
+genesis:
+  env:    resolute-wrong-stemcell-os
+  entomb: false
+
+params:
+  auxiliary_vault: true
+  stemcell_os:     ubuntu-noble

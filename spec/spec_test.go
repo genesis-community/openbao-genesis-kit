@@ -6,6 +6,7 @@ import (
 
 	. "github.com/genesis-community/testkit/v2/testing"
 	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = BeforeSuite(func() {
@@ -45,6 +46,39 @@ var _ = Describe("OpenBAO Kit", func() {
 			Name:        "ocfp-mgmt",
 			CloudConfig: "aws-ocfp",
 			CPI:         "aws",
+		})
+	})
+
+	Describe("resolute", func() {
+		Test(Environment{
+			Name:        "resolute",
+			CloudConfig: "aws",
+			CPI:         "aws",
+		})
+		Test(Environment{
+			Name:        "resolute-mgmt",
+			CloudConfig: "aws-resolute-mgmt",
+			CPI:         "aws",
+		})
+		Test(Environment{
+			Name:        "resolute-wrong-stemcell-os",
+			CloudConfig: "aws",
+			CPI:         "aws",
+			OutputMatchers: OutputMatchers{
+				GenesisAddSecrets: ContainSubstring("stemcell os to"),
+				GenesisCheck:      ContainSubstring("stemcell os to"),
+				GenesisManifest:   ContainSubstring("stemcell os to"),
+			},
+		})
+		Test(Environment{
+			Name:        "resolute-stemcell-without-feature",
+			CloudConfig: "aws",
+			CPI:         "aws",
+			OutputMatchers: OutputMatchers{
+				GenesisAddSecrets: ContainSubstring("Enable the feature and remove that parameter"),
+				GenesisCheck:      ContainSubstring("Enable the feature and remove that parameter"),
+				GenesisManifest:   ContainSubstring("Enable the feature and remove that parameter"),
+			},
 		})
 	})
 })
