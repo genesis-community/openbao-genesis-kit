@@ -113,11 +113,31 @@ EOF
       $self->add_files(
         'manifests/ocfp.yml',
       );
+    } elsif ($feature eq 'resolute') {
+      # Handled below, after every other fragment, so it wins.
     } elsif (-f "$ENV{GENESIS_ROOT}/${feature}.yml") {
       $self->add_files("$ENV{GENESIS_ROOT}/${feature}.yml")
     } else {
       push @invalid, $feature;
     }
+  }
+
+  # Ubuntu resolute stemcells (opt-in; the default stays ubuntu-noble).
+  # Added last so that it overrides every other stemcell default.
+  if ($self->want_feature('resolute')) {
+    my $stemcell_os = $self->env->lookup('params.stemcell_os', 'ubuntu-resolute');
+    bail(
+      "The #c{resolute} feature sets the stemcell os to ubuntu-resolute, but " .
+      "the environment sets #c{params.stemcell_os} to #R{%s}.  " .
+      "Remove that parameter.", $stemcell_os
+    ) if $stemcell_os ne 'ubuntu-resolute';
+    $self->add_files('manifests/resolute.yml');
+  } elsif ($self->env->lookup('params.stemcell_os', 'ubuntu-noble') eq 'ubuntu-resolute') {
+    bail(
+      "The environment sets #c{params.stemcell_os} to ubuntu-resolute " .
+      "without the #c{resolute} feature.  Enable the feature and remove " .
+      "that parameter."
+    );
   }
 
   bail(
