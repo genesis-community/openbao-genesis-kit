@@ -248,7 +248,7 @@ Before the first deploy we need to do two things on the director.
 
 - Make sure the director's runtime config carries bosh-dns 1.39.31 or later. Earlier bosh-dns releases do not run on resolute.
 
-The kit's releases are unchanged, and the bpm release it uses runs fine on resolute. Resolute ships without runit, so the `chpst` command is missing. A job whose start script drops privileges with `chpst` hangs on resolute, and we have to switch it to `setpriv` or bpm before its release can run there. We should check any job we add to the deployment for `chpst` before we move it to resolute.
+The feature also moves bpm to 1.4.41, because older bpm releases bundle a tini package that resolute's CMake refuses to compile. OpenBAO's own release is unchanged. Resolute ships without runit, so the `chpst` command is missing. A job whose start script drops privileges with `chpst` hangs on resolute, and we have to switch it to `setpriv` or bpm before its release can run there. We should check any job we add to the deployment for `chpst` before we move it to resolute.
 
 ## Caveats
 

@@ -53,9 +53,9 @@ releases:
   url: https://github.com/cloudfoundry-community/openbao-boshrelease/releases/download/v0.3.5/openbao-0.3.5.tgz
   version: 0.3.5
 - name: bpm
-  sha1: sha256:51f2eab4b59939db733beb8f7905e461a732cc29d85e54f151f576cd5bf0c414
-  url: https://bosh.io/d/github.com/cloudfoundry/bpm-release?v=1.4.22
-  version: 1.4.22
+  sha1: sha256:7b445508d63d2171d892ba33f836087e1e519b9782f44c5fa5290323616ca8e6
+  url: https://bosh.io/d/github.com/cloudfoundry/bpm-release?v=1.4.41
+  version: 1.4.41
 stemcells:
 - alias: default
   os: ubuntu-resolute
