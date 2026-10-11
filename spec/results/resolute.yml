@@ -32,6 +32,8 @@ instance_groups:
             certificate: <!{meta.vault}/certs/peer:certificate!>
             key: <!{meta.vault}/certs/peer:key!>
             servername: openbao.bosh
+        seal:
+          type: shamir
         tls:
           certificate: <!{meta.vault}/certs/vault:certificate!>
           key: <!{meta.vault}/certs/vault:key!>
@@ -52,9 +54,9 @@ instance_groups:
 name: resolute-openbao
 releases:
 - name: openbao
-  sha1: sha256:0d76a4fc75a6ba4a8648f79dfa46701e70f57c92a7ce68656ea95e703fb76048
-  url: https://github.com/cloudfoundry-community/openbao-boshrelease/releases/download/v0.3.5/openbao-0.3.5.tgz
-  version: 0.3.5
+  sha1: sha256:f6c2b5d370ba9a05edbe5214855c3563dcccaded11f37cf1e8d51fdfbf86ed4b
+  url: https://github.com/cloudfoundry-community/openbao-boshrelease/releases/download/v0.4.1/openbao-0.4.1.tgz
+  version: 0.4.1
 - name: bpm
   sha1: sha256:7b445508d63d2171d892ba33f836087e1e519b9782f44c5fa5290323616ca8e6
   url: https://bosh.io/d/github.com/cloudfoundry/bpm-release?v=1.4.41

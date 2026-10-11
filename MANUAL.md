@@ -248,7 +248,13 @@ Before the first deploy we need to do two things on the director.
 
 - Make sure the director's runtime config carries bosh-dns 1.39.31 or later. Earlier bosh-dns releases do not run on resolute.
 
-The feature also moves bpm to 1.4.41, because older bpm releases bundle a tini package that resolute's CMake refuses to compile. OpenBAO's own release is unchanged. Resolute ships without runit, so the `chpst` command is missing. A job whose start script drops privileges with `chpst` hangs on resolute, and we have to switch it to `setpriv` or bpm before its release can run there. We should check any job we add to the deployment for `chpst` before we move it to resolute.
+The feature pins two releases and sets one property, and we want to explain each one.
+
+First, it moves the bpm release to 1.4.41. Older bpm releases bundle a tini package whose CMake minimum is older than the CMake on resolute accepts, so those packages fail to compile on the compilation VMs.
+
+Second, it moves the openbao release to 0.4.1. Resolute ships without runit, so the `chpst` command is missing, and a job whose start script drops privileges with `chpst` hangs there. Earlier openbao releases call `chpst` in their pre-start script, while 0.4.1 drops privileges with `setpriv` instead. We should check any other job we add to the deployment for `chpst` before we move it to resolute, and switch it to `setpriv` or bpm if it uses `chpst`.
+
+Third, it sets the seal type to `shamir`. Release 0.4.x defaults to a static seal, which cannot render without a key. Setting the type keeps an existing shamir cluster on its current seal when it moves to resolute. An environment that wants a static seal has to set the seal type explicitly in its own environment file, which overrides the feature.
 
 ## Caveats
 
