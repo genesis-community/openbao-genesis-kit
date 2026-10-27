@@ -11,25 +11,8 @@ params:
 # bpm releases before 1.4.41 bundle a tini whose CMake minimum is older than
 # resolute's CMake accepts, so their packages fail to compile there.
 #
-# openbao releases before 0.4.1 call chpst in pre-start, and resolute has no
-# chpst.  0.4.x defaults the seal type to static, which fails to render
-# without a key, so the kit keeps shamir as its default.  An env file can
-# still set its own seal type.
 releases:
 - name: bpm
   version: 1.4.41
   url: https://bosh.io/d/github.com/cloudfoundry/bpm-release?v=1.4.41
   sha1: sha256:7b445508d63d2171d892ba33f836087e1e519b9782f44c5fa5290323616ca8e6
-- name: openbao
-  version: 0.4.1
-  url: https://github.com/cloudfoundry-community/openbao-boshrelease/releases/download/v0.4.1/openbao-0.4.1.tgz
-  sha1: sha256:f6c2b5d370ba9a05edbe5214855c3563dcccaded11f37cf1e8d51fdfbf86ed4b
-
-instance_groups:
-- name: openbao
-  jobs:
-  - name: openbao
-    properties:
-      openbao:
-        seal:
-          type: shamir

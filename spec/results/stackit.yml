@@ -32,6 +32,8 @@ instance_groups:
             certificate: <!{meta.vault}/certs/peer:certificate!>
             key: <!{meta.vault}/certs/peer:key!>
             servername: openbao.bosh
+        seal:
+          type: shamir
         tls:
           certificate: <!{meta.vault}/certs/vault:certificate!>
           key: <!{meta.vault}/certs/vault:key!>
@@ -53,9 +55,9 @@ instance_groups:
 name: stackit-openbao
 releases:
 - name: openbao
-  sha1: sha256:0d76a4fc75a6ba4a8648f79dfa46701e70f57c92a7ce68656ea95e703fb76048
-  url: https://github.com/cloudfoundry-community/openbao-boshrelease/releases/download/v0.3.5/openbao-0.3.5.tgz
-  version: 0.3.5
+  sha1: sha256:133518349444fdbb0bf57f90d47ab0f7e0364cebf90948f6188699d03d885881
+  url: https://github.com/cloudfoundry-community/openbao-boshrelease/releases/download/v0.5.0/openbao-0.5.0.tgz
+  version: 0.5.0
 - name: bpm
   sha1: sha256:51f2eab4b59939db733beb8f7905e461a732cc29d85e54f151f576cd5bf0c414
   url: https://bosh.io/d/github.com/cloudfoundry/bpm-release?v=1.4.22

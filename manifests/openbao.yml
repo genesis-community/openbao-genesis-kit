@@ -20,6 +20,11 @@ instance_groups:
         log_level: (( grab params.log_level || "info" ))
         default_lease_ttl: (( grab params.default_lease_ttl || "768h" ))
         max_lease_ttl: (( grab params.max_lease_ttl || "768h" ))
+        # openbao releases 0.4.0 and later default the seal type to static,
+        # which fails to render without a key.  Keep shamir as the kit
+        # default; an env file can still set its own seal type.
+        seal:
+          type: shamir
         peer:
           tls:
             ca:          (( vault meta.vault "/certs/ca:certificate" ))
