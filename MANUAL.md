@@ -269,6 +269,11 @@ inaccessible.
 
 ## History
 
+Version 1.2.0 upgrades OpenBao to v2.7.2, a security release, via
+openbao-boshrelease v0.5.0. It sets the Shamir seal for every deployment,
+since the release now defaults to a static seal, and it adds the opt-in
+`resolute` feature for ubuntu-resolute stemcells.
+
 Version 1.1.0 upgrades OpenBao to v2.7.1 via openbao-boshrelease v0.3.5,
 which forwards standby reads to the active node by default. It adds PVE
 cloud-config support, defaults the stemcell to ubuntu-noble, unseals every
