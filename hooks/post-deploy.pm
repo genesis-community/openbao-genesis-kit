@@ -95,12 +95,20 @@ sub _show_manual_instructions {
 	)
 }
 
+# _setup_doomsday_approle - give doomsday read-only credentials in exodus {{{
+# The role lives in the deployed OpenBAO, and its credentials are written to
+# this environment's exodus data in the deploying vault, where the doomsday
+# kit and `genesis lookup --exodus` read them, as the vault kit does.
+# Genesis rewrites that exodus data on every deploy, so a fresh secret_id is
+# minted each time, and every earlier secret_id of the role is destroyed
+# first, so at most one is ever valid.  Every secret goes to safe on stdin.
 sub _setup_doomsday_approle {
 	my ($self) = @_;
+	my $name = $ENV{GENESIS_ENVIRONMENT};
 
 	# Check if vault is initialized and unsealed
 	my ($status_out, $status_rc) = run({ stderr => 0 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'status'
+		'safe', '-T', $name, 'vault', 'status'
 	);
 
 	# Parse status to check if initialized and unsealed
@@ -110,13 +118,22 @@ sub _setup_doomsday_approle {
 
 	# Check if we can authenticate (need to be authenticated to create approles)
 	my ($auth_check, $auth_rc) = run({ stderr => 0 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'auth', 'status'
+		'safe', '-T', $name, 'auth', 'status'
 	);
 
 	unless ($auth_rc == 0) {
 		info("Skipping doomsday approle setup - not authenticated with OpenBAO");
 		return;
 	}
+
+	my $provider = eval {$self->env->vault};
+	unless ($provider) {
+		my $err = ($@ || 'no deploying vault is configured for this environment') =~ s/\s+/ /gr;
+		info("Skipping doomsday approle setup - could not resolve the deploying vault to store its credentials in: $err");
+		return;
+	}
+	my $exodus_base = $ENV{GENESIS_EXODUS_BASE} // $self->env->exodus_base;
+	(my $exodus_path = $exodus_base) =~ s{/+$}{};
 
 	info("");
 	info("Setting up doomsday monitoring approle...");
@@ -132,29 +149,17 @@ sub _setup_doomsday_approle {
 		return;
 	}
 
-	# Check if doomsday approle already exists
+	# Check if doomsday approle already exists with credentials in exodus
 	my ($list_out, $list_rc) = run({ stderr => 0 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'list', '-format=json', 'auth/approle/role'
+		'safe', '-T', $name, 'vault', 'list', '-format=json', 'auth/approle/role'
 	);
-
-	if ($list_rc == 0 && $list_out) {
-		eval {
-			require JSON::PP;
-			my $roles = JSON::PP::decode_json($list_out);
-			if (ref($roles) eq 'ARRAY' && grep { $_ eq 'doomsday' } @$roles) {
-				my ($exodus_id, $id_rc) = run({ stderr => 0 },
-					'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'get', $ENV{GENESIS_EXODUS_MOUNT} . ':doomsday_approle_id'
-				);
-				my ($exodus_secret, $secret_rc) = run({ stderr => 0 },
-					'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'get', $ENV{GENESIS_EXODUS_MOUNT} . ':doomsday_approle_secret'
-				);
-
-				if ($id_rc == 0 && $secret_rc == 0 && $exodus_id && $exodus_secret) {
-					info("#G{[ok]} Doomsday approle already exists with credentials in exodus");
-					return;
-				}
-			}
-		};
+	my $roles = $list_rc == 0 && $list_out ? eval {JSON::PP::decode_json($list_out)} : undef;
+	if (ref($roles) eq 'ARRAY' && grep {$_ eq 'doomsday'} @$roles) {
+		if ($provider->has($exodus_path, 'doomsday_approle_id')
+			&& $provider->has($exodus_path, 'doomsday_approle_secret')) {
+			info("#G{[ok]} Doomsday approle already exists with credentials in exodus");
+			return;
+		}
 	}
 
 	# Create doomsday read-only policy
@@ -201,8 +206,8 @@ path "secret/metadata/*" {
 }
 EOF
 
-	my ($policy_rc) = run({ stdin => $policy, stderr => 1 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'policy', 'write', 'doomsday', '-'
+	my (undef, $policy_rc) = run({ stdin => $policy, stderr => '&1' },
+		'safe', '-T', $name, 'vault', 'policy', 'write', 'doomsday', '-'
 	);
 
 	unless ($policy_rc == 0) {
@@ -211,11 +216,12 @@ EOF
 	}
 	info("#G{[ok]} Doomsday policy created");
 
-	# Create doomsday approle
+	# Create doomsday approle.  safe set would read the role back and rewrite
+	# every field, so the role is written natively.
 	info("Creating doomsday approle...");
 
-	my ($create_rc) = run({ stderr => 1 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'set',
+	my ($create_out, $create_rc) = run({ stderr => '&1' },
+		'safe', '-T', $name, 'vault', 'write',
 		'auth/approle/role/doomsday',
 		'secret_id_ttl=0',
 		'token_num_uses=0',
@@ -226,53 +232,119 @@ EOF
 	);
 
 	unless ($create_rc == 0) {
-		info("#R{ERROR:} Failed to create doomsday approle");
+		info("#R{ERROR:} Failed to create doomsday approle: %s", ($create_out // '') =~ s/\s+/ /gr);
 		return;
 	}
 
 	# Get role ID
-	my ($role_id, $role_rc) = run({ stderr => 0 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'get', 'auth/approle/role/doomsday/role-id:role_id'
+	my ($role_id, $role_rc) = run({ stderr => 0, redact_output => 1 },
+		'safe', '-T', $name, 'get', 'auth/approle/role/doomsday/role-id:role_id'
 	);
+	$role_id = defined($role_id) ? $role_id =~ s/^\s+|\s+$//gr : '';
 
-	unless ($role_rc == 0 && $role_id) {
+	unless ($role_rc == 0 && $role_id ne '') {
 		info("#R{ERROR:} Failed to get doomsday role ID");
 		return;
 	}
 
-	# Generate secret ID
-	my ($secret_id, $secret_rc) = run({ stderr => 0 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'write', '-field=secret_id', '-f',
-		'auth/approle/role/doomsday/secret-id'
-	);
+	# The secret_ids never expire, so destroy every earlier one before
+	# minting the next.  The accessors can't authenticate, so they may appear
+	# on argv.
+	my @accessors = _doomsday_secret_id_accessors($name);
+	unless (defined($accessors[0])) {
+		info("#R{ERROR:} Failed to list the doomsday approle's secret IDs: %s", $accessors[1]);
+		return;
+	}
+	shift @accessors;
+	for my $accessor (@accessors) {
+		unless (_destroy_doomsday_secret_id($name, $accessor)) {
+			info("#R{ERROR:} Failed to destroy an earlier doomsday secret ID (accessor %s), so no new one was minted", $accessor);
+			return;
+		}
+	}
+	info("#G{[ok]} Destroyed %d earlier doomsday secret ID(s)", scalar(@accessors)) if @accessors;
 
-	unless ($secret_rc == 0 && $secret_id) {
+	# Generate secret ID
+	my ($secret_out, $secret_rc) = run({ stderr => 0, redact_output => 1 },
+		'safe', '-T', $name, 'vault', 'write', '-format=json', '-f', 'auth/approle/role/doomsday/secret-id'
+	);
+	my $minted = $secret_rc == 0 ? eval {JSON::PP::decode_json($secret_out)} : undef;
+	my $data = ref($minted) eq 'HASH' && ref($minted->{data}) eq 'HASH' ? $minted->{data} : {};
+	my ($secret_id, $secret_accessor) = @{$data}{qw/secret_id secret_id_accessor/};
+
+	unless (length($secret_id // '') && length($secret_accessor // '')) {
 		info("#R{ERROR:} Failed to generate doomsday secret ID");
 		return;
 	}
 
-	# Store in exodus
+	# Store in exodus, each secret through stdin
 	info("Storing doomsday approle credentials in exodus...");
 
-	chomp($role_id);
-	chomp($secret_id);
-
-	my ($store_rc) = run({ stderr => 1 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'set',
-		$ENV{GENESIS_EXODUS_MOUNT},
-		"doomsday_approle_id=$role_id",
-		"doomsday_approle_secret=$secret_id"
-	);
+	my ($id_rc, $id_err) = _set_secret_on_stdin($provider, $exodus_path, 'doomsday_approle_id', $role_id);
+	my ($store_rc, $store_err) = $id_rc == 0
+		? _set_secret_on_stdin($provider, $exodus_path, 'doomsday_approle_secret', $secret_id,
+			"doomsday_approle_secret_accessor=$secret_accessor")
+		: ($id_rc, $id_err);
 
 	if ($store_rc == 0) {
-		info("#G{#@{+} Doomsday approle created successfully!}");
-		info("  Credentials stored in exodus at: $ENV{GENESIS_EXODUS_MOUNT}");
+		info("#G{#\@{+} Doomsday approle created successfully!}");
+		info("  Credentials stored in exodus at: #C{%s} in the deploying vault #M{%s}", $exodus_path, $provider->url // '');
 		info("  - doomsday_approle_id");
 		info("  - doomsday_approle_secret");
+		info("  - doomsday_approle_secret_accessor");
 	} else {
-		info("#R{ERROR:} Failed to store doomsday credentials in exodus");
+		$store_err =~ s/\s+/ /g;
+		info("#R{ERROR:} Failed to store doomsday credentials in exodus: %s", $store_err || "safe exited $store_rc");
+		# Nobody holds the new secret ID, so don't leave it valid
+		if (_destroy_doomsday_secret_id($name, $secret_accessor)) {
+			info("  Destroyed the doomsday secret ID that could not be stored");
+		} else {
+			info("  #Y{WARNING:} Could not destroy the doomsday secret ID that could not be stored (accessor %s)", $secret_accessor);
+		}
 	}
 }
+# }}}
+
+# _set_secret_on_stdin - write one secret value to a provider through stdin {{{
+# Extra key=value pairs, which must not be secret, go in the same write.
+# Returns the exit code and the error text.
+sub _set_secret_on_stdin {
+	my ($provider, $path, $key, $value, @pairs) = @_;
+	my (undef, $rc, $err) = $provider->query(
+		{stdin => $value, stderr => 0, redact_output => 1},
+		'set', $path, "$key\@-", @pairs
+	);
+	return ($rc, $err // '');
+}
+# }}}
+
+# _doomsday_secret_id_accessors - accessors of every doomsday secret_id {{{
+# Returns (1, @accessors), or (undef, $error) when they can't be listed.
+# OpenBAO answers a list with nothing in it with "No value found".
+sub _doomsday_secret_id_accessors {
+	my ($name) = @_;
+	my ($out, $rc, $err) = run({ stderr => 0 },
+		'safe', '-T', $name, 'vault', 'list', '-format=json', 'auth/approle/role/doomsday/secret-id'
+	);
+	my $text = join(' ', grep {defined} $out, $err);
+	return (1) if $rc != 0 && $text =~ /No value found/i;
+	my $list = $rc == 0 ? eval {JSON::PP::decode_json($out)} : undef;
+	return (1, grep {defined && !ref && /\S/} @$list) if ref($list) eq 'ARRAY';
+	$text =~ s/\s+/ /g;
+	return (undef, $text =~ /\S/ ? $text : "safe exited $rc");
+}
+# }}}
+
+# _destroy_doomsday_secret_id - destroy one secret_id by its accessor {{{
+sub _destroy_doomsday_secret_id {
+	my ($name, $accessor) = @_;
+	my (undef, $rc) = run({ stderr => 0 },
+		'safe', '-T', $name, 'vault', 'write', 'auth/approle/role/doomsday/secret-id-accessor/destroy',
+		"secret_id_accessor=$accessor"
+	);
+	return $rc == 0;
+}
+# }}}
 
 # _enable_approle_with_retry - enable approle auth with a bounded readiness gate {{{
 # Immediately after a fresh deploy, `auth status` can already succeed while
@@ -288,9 +360,13 @@ sub _enable_approle_with_retry {
 	my $enable_out = '';
 
 	for (my $attempt = 0; ; $attempt++) {
-		($enable_out) = run({ stderr => 0 },
-			'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'auth', 'enable', 'approle', '2>&1', '||', 'true'
+		# stderr is merged so that the "already in use" answer, which exits
+		# non-zero, is seen.  The arguments go to safe as they are, so no
+		# shell redirect belongs among them.
+		($enable_out) = run({ stderr => '&1' },
+			'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'auth', 'enable', 'approle'
 		);
+		$enable_out //= '';
 
 		return ($enable_out, 1)
 			if $enable_out =~ /Success\! Enabled approle auth method/ || $enable_out =~ /path is already in use/;

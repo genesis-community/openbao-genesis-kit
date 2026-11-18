@@ -139,6 +139,14 @@ subtest '_setup_doomsday_approle warns non-fatally when the retry budget is exha
 		return ( '', 0 );
 	};
 
+	# The credentials go to the deploying vault, so the hook resolves it
+	# before it touches OpenBAO.
+	local *Genesis::Hook::PostDeploy::Openbao::env = sub {
+		bless {}, 'MockRetryEnv';
+	};
+	local *MockRetryEnv::vault = sub { bless {}, 'MockRetryProvider' };
+	local *MockRetryEnv::exodus_base = sub { '/secret/exodus/lab-openbao/openbao' };
+
 	my $retry_calls = 0;
 	local *Genesis::Hook::PostDeploy::Openbao::_enable_approle_with_retry = sub {
 		$retry_calls++;

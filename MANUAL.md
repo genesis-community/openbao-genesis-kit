@@ -267,6 +267,8 @@ upgrade the operating system (stemcell), the cluster will protectively seal
 itself. An operator **must** intervene to unseal it, or it will remain
 inaccessible.
 
+After a successful deploy, post-deploy creates a read-only `doomsday` AppRole in OpenBAO, so that a Doomsday deployment can scan it for certificates. Every deploy issues a new secret ID and destroys the earlier ones, and it stores `doomsday_approle_id`, `doomsday_approle_secret`, and `doomsday_approle_secret_accessor` in this environment's exodus data in the deploying vault, the same place the vault kit stores them. The secrets reach `safe` on stdin and never appear on a command line.
+
 ## History
 
 Version 1.2.0 upgrades OpenBao to v2.7.2, a security release, via
